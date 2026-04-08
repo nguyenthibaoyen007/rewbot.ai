@@ -75,6 +75,12 @@ Trong lúc chờ, bot vẫn kiểm tra:
 
 Nếu giá đã chạm SL, tín hiệu sẽ bị hủy.
 
+### 4.1 Khôi phục key HTF/LTF sau khi restart
+
+- Bot lưu state quét tín hiệu ra file `scan_state.json` theo chu kỳ.
+- Khi khởi động lại, bot khôi phục lại key HTF/LTF và log quán tính từ file này.
+- Mục tiêu là tránh mất state khiến bot gửi lại tín hiệu cũ sau restart.
+
 ### 5. Bot quản lý lệnh sau khi vào
 
 Sau khi lệnh được mở, bot tiếp tục theo dõi:
@@ -149,6 +155,40 @@ Ví dụ:
 - Nếu m10 đã gửi tín hiệu buy trong chu kỳ hiện tại, thì m15 buy cùng branch có thể bị chặn.
 - Cơ chế này giúp tránh gửi quá nhiều tín hiệu cùng chiều ở các khung gần nhau.
 
+### Chặn tín hiệu cùng hướng và loại (Branch-aware blocking)
+
+Bot có cơ chế chặn tín hiệu khi đã có pending signal cùng:
+- **Symbol** (cặp tiền)
+- **Direction** (hướng: buy/sell)
+- **Branch** (loại tín hiệu: pattern hay strong)
+
+**Tây tác này giúp tránh gửi quá nhiều tín hiệu cùng hướng trên cùng một symbol, nhưng vẫn cho phép signal khác loại được gửi.**
+
+#### Ví dụ cụ thể:
+
+**Chu kỳ 1:**
+- m15 + m3 xuất hiện **Tích lũy tăng** (pattern long) → gửi signal
+- Pending: `{"signal_key": "pattern:EURUSD:m15:m3:123", "branch": "pattern", "direction": "buy"}`
+
+**Chu kỳ 2-3 (trong quá trình m15-m3 pattern long chưa SL):**
+- m10 quét được tích lũy tăng (pattern long) → **bị chặn** vì đã có pending pattern buy cùng symbol
+- h1 quét được tích lũy tăng (pattern long) → **bị chặn** vì đã có pending pattern buy cùng symbol
+- **Nhưng** h1 quét được **quán tính tăng** (strong long) → **được gửi bình thường** vì khác loại (pattern ≠ strong)
+- **Và** m15 + m3 quét được **quán tính tăng** (strong long) → **được gửi bình thường** vì khác loại
+
+Log bot sẽ hiển thị:
+```
+[BLOCK-SIGNAL] Bỏ qua EURUSD h1 (pattern buy) vì đã có pending signal cùng loại và hướng
+[SCANNER] Đã gửi EURUSD h1+m15 (lần 1) - tín hiệu quán tính tăng
+```
+
+#### Lợi ích:
+
+- **Tránh spam cùng loại:** Nếu m15-m3 đang có tín hiệu tích lũy (pattern), bạn không nhận quá nhiều tín hiệu tích lũy từ m10, m20, h1 v.v.
+- **Cho phép tín hiệu khác loại:** Nhưng bạn vẫn nhận được tín hiệu quán tính (strong) vì chúng là loại khác.
+- **Giữ workflow 2 lần:** Logic chặn liền kề vẫn hoạt động bình thường (m5 → m10, m10 → m15).
+- **Khôi phục sau restart:** Tín hiệu pending được lưu vào `scan_state.json`, khi khởi động lại bot sẽ tiếp tục chặn tín hiệu cùng loại.
+
 ### Khung tín hiệu nhỏ nhất
 
 Người dùng có thể chọn khung nhỏ nhất để bot bắt đầu nhận tín hiệu theo HTF.
@@ -203,21 +243,73 @@ Bot hỗ trợ:
 
 ## Ví Dụ Cụ Thể
 
-### Ví dụ 1: Tín hiệu m15 + m3
+### Ví dụ 1: M15 + M3 tích lũy, nhưng quán tính vẫn được gửi
 
 Giả sử:
 
-- HTF m15 đang có quán tính tăng
-- LTF m3 xuất hiện Long hợp lệ
-- Người dùng không chặn hướng buy
-- Khung tín hiệu nhỏ nhất đang chọn là m5
+- Chu kỳ 1: HTF m15 + LTF m3 xuất hiện **tích lũy tăng** (pattern long) → bot gửi signal
+- Chu kỳ 2: m10 hoặc h1 quét được **tích lũy tăng** (pattern long) → **bị chặn** (cùng loại và hướng)
+- Chu kỳ 2: Nhưng m15 + m3 hoặc h1 quét được **quán tính tăng** (strong long) → **được gửi** (khác loại)
 
 Kết quả:
 
-- Bot vẫn có thể gửi vì HTF m15 đạt ngưỡng m5.
-- LTF m3 vẫn được phép hoạt động nếu nằm trong map của HTF đó.
+- Người dùng không bị spam nhiều tín hiệu tích lũy cùng hướng.
+- Nhưng vẫn nhận được tín hiệu quán tính nếu có, vì đó là loại khác.
 
-### Ví dụ 2: Retry sau SL
+### Ví dụ 2: M15 + M5 pattern long pending, m15 + m10 strong long được phép gửi
+
+Giả sử:
+
+- Trạng thái: `pending[key] = {"symbol": "EURUSD", "direction": "buy", "branch": "pattern"}`
+- m30 quét được pattern long (direction: buy, branch: pattern) → **kiếm tra** `has_pending_signal_with_direction_and_branch("EURUSD", "buy", "pattern")`
+  - Kết quả: TRUE → **bị chặn**
+  - Log: `[BLOCK-SIGNAL] Bỏ qua EURUSD m30 (pattern buy) vì đã có pending signal cùng loại và hướng`
+
+- Đồng thời, h1 quét được strong long (direction: buy, branch: strong) → **kiểm tra** `has_pending_signal_with_direction_and_branch("EURUSD", "buy", "strong")`
+  - Kết quả: FALSE → **được gửi**
+  - Log: `[SCANNER] Đã gửi EURUSD h1+m15 (lần 1) - tín hiệu quán tính`
+
+### Ví dụ 3: Pattern short pending, strong long được gửi
+
+Giả sử:
+
+- Trạng thái: `pending[key] = {"symbol": "GBPUSD", "direction": "sell", "branch": "pattern"}`
+- m20 quét được pattern short (direction: sell, branch: pattern) → **bị chặn** (cùng direction+branch)
+- h1 quét được strong long (direction: buy, branch: strong) → **được gửi** (khác direction và khác branch)
+
+Kết quả:
+
+- Pattern short bị chặn, nhưng signal ngược chiều (long) vẫn được gửi.
+
+### Ví dụ 4: Retry sau SL - pattern được phépa gửi lần 2
+
+Giả sử:
+
+- Chu kỳ 1: m15+m3 pattern long gửi → pending
+- Chu kỳ 2: Lệnh bị SL
+- Chu kỳ 3: m15 muốn retry cùng pattern long (lần 2) → **được phép** vì signal cũ đã xóa từ pending
+
+Kết quả:
+
+- Bot retry pattern long lần 2 bình thường.
+- Nếu chỉ m15+m3 mà không có h1+m15 chạy song song, thì không có xung đột.
+
+### Ví dụ 5: Tín hiệu hết hạn và khôi phục
+
+Giả sử:
+
+- Lúc 10:00: m15+m3 pattern long gửi / saved to scan_state.json
+- Lúc 10:15: TTL hết (15 phút) → tín hiệu bị xóa khỏi pending
+- Bot bị tắt rồi bật lại lúc 10:20
+
+Kết quả:
+
+- Khi restore_scan_state() chạy, nó kiểm tra TTL mỗi pending signal.
+- Signal của lúc 10:00 đã quá 15 phút → bị bỏ qua (không khôi phục).
+- Log: `[RESTORE] Bỏ qua pending signal pattern:EURUSD:m15:m3:123 - đã hết hạn`
+- Các signal mới có thể được quét lại bình thường.
+
+### Ví dụ 6 (Cũ): Retry sau SL
 
 Giả sử:
 
@@ -230,7 +322,7 @@ Kết quả:
 - Bot retry lại m5 lần 2.
 - Nếu tiếp tục SL thêm lần nữa, bot sẽ chuyển sang LTF kế tiếp, ví dụ m10 nếu còn phù hợp.
 
-### Ví dụ 3: Chặn HTF liền kề
+### Ví dụ 7 (Cũ): Chặn HTF liền kề
 
 Giả sử:
 
@@ -239,9 +331,10 @@ Giả sử:
 
 Kết quả:
 
-- Bot có thể chặn m15 buy để tránh trùng hướng trên HTF liền kề.
+- Bot kiểm tra cycle_sent (workflow liền kề), thấy m10 đã gửi cùng hướng.
+- Bỏ qua m15 để tránh ngay lập tức 2 signal gần nhau.
 
-### Ví dụ 4: Tín hiệu hết hạn
+### Ví dụ 8 (Cũ): Tín hiệu hết hạn
 
 Giả sử:
 
@@ -296,8 +389,24 @@ Trong /settings:
 - Ảnh được gửi qua Telegram kèm caption và nút thao tác.
 - Có cơ chế khử trùng lặp tín hiệu theo state.
 - Có cơ chế kiểm tra SL trước khi xác nhận lệnh.
+- Có cơ chế persist state scanner qua `scan_state.json` để giữ key HTF/LTF sau khi tắt mở bot.
+- Có cơ chế block signal cùng direction và branch (pattern chặn pattern, strong chặn strong).
+- Pending signals được lưu vào `scan_state.json` và khôi phục khi bot restart.
+  - Tín hiệu hết hạn (> SIGNAL_TTL) sẽ tự động bị loại bỏ khi restore.
+  - Ensures direction blocking logic vẫn hoạt động sau restart.
 
 ## Changelog
+
+### 2026-04-08 (Update 2)
+
+- Thêm chặn tín hiệu cùng hướng và loại (branch-aware blocking).
+  - Pattern signal chỉ chặn pattern signal cùng hướng.
+  - Strong signal chỉ chặn strong signal cùng hướng.
+  - Pattern long pending không chặn strong long mới.
+- Lưu branch thông tin vào pending dict.
+- Khôi phục pending signals từ scan_state.json với TTL validation.
+  - Signal hết hạn (> 15 phút) sẽ tự động bị loại khi restore.
+- Update helper function: `has_pending_signal_with_direction_and_branch()` để check cả 3 criteria.
 
 ### 2026-04-08
 
@@ -305,3 +414,4 @@ Trong /settings:
 - Sửa logic khung tín hiệu nhỏ nhất: chỉ áp cho HTF, không block LTF.
 - Bổ sung workflow retry và chuyển LTF cho strong_signal giống pattern.
 - Tối ưu render ảnh bằng cách gửi ảnh trực tiếp từ bộ nhớ thay vì ghi ra file rồi mở lại.
+- Thêm lưu/khôi phục `scan_state.json` để không mất key HTF/LTF sau restart.
