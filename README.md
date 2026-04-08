@@ -49,7 +49,7 @@ Ví dụ:
 - HTF m30 có thể đi với LTF m6 hoặc m8
 - HTF h1 có thể đi với LTF m8, m10 hoặc m15
 
-Người dùng còn có thể chọn khung tín hiệu nhỏ nhất để nhận, ví dụ chỉ nhận từ m15 trở lên.
+Người dùng còn có thể chọn khung tín hiệu nhỏ nhất để nhận theo HTF, ví dụ chỉ nhận HTF từ m15 trở lên.
 
 ### 3. Bot gửi tín hiệu
 
@@ -151,7 +151,7 @@ Ví dụ:
 
 ### Khung tín hiệu nhỏ nhất
 
-Người dùng có thể chọn khung nhỏ nhất để bot bắt đầu nhận tín hiệu.
+Người dùng có thể chọn khung nhỏ nhất để bot bắt đầu nhận tín hiệu theo HTF.
 
 Danh sách hỗ trợ:
 
@@ -168,8 +168,13 @@ Danh sách hỗ trợ:
 
 Ví dụ:
 
-- Chọn m15: bot chỉ nhận tín hiệu từ m15 trở lên, bỏ qua m5, m10.
-- Chọn h1: bot chỉ nhận tín hiệu từ h1 trở lên, bỏ qua toàn bộ các khung thấp hơn.
+- Chọn m15: bot chỉ xét các HTF từ m15 trở lên, bỏ qua HTF m10.
+- Chọn h1: bot chỉ xét các HTF từ h1 trở lên.
+
+Lưu ý quan trọng:
+
+- Ngưỡng này chỉ lọc HTF.
+- LTF của từng HTF vẫn chạy bình thường theo map (không bị block bởi ngưỡng này).
 
 ### Bộ lọc hướng kèo
 
@@ -209,9 +214,8 @@ Giả sử:
 
 Kết quả:
 
-- Bot sẽ không gửi vì m3 nhỏ hơn ngưỡng m5.
-
-Nếu đổi ngưỡng xuống m3 thì bot mới có thể gửi.
+- Bot vẫn có thể gửi vì HTF m15 đạt ngưỡng m5.
+- LTF m3 vẫn được phép hoạt động nếu nằm trong map của HTF đó.
 
 ### Ví dụ 2: Retry sau SL
 
@@ -298,5 +302,6 @@ Trong /settings:
 ### 2026-04-08
 
 - Thêm chọn khung tín hiệu nhỏ nhất từ m5 đến h4.
+- Sửa logic khung tín hiệu nhỏ nhất: chỉ áp cho HTF, không block LTF.
 - Bổ sung workflow retry và chuyển LTF cho strong_signal giống pattern.
 - Tối ưu render ảnh bằng cách gửi ảnh trực tiếp từ bộ nhớ thay vì ghi ra file rồi mở lại.
