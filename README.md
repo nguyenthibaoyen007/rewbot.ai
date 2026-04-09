@@ -437,7 +437,5 @@ Trong /settings:
 ### 2026-04-08
 
 - Thêm chọn khung tín hiệu nhỏ nhất từ m5 đến h4.
-- Sửa logic khung tín hiệu nhỏ nhất: chỉ áp cho HTF, không block LTF.
-- Bổ sung workflow retry và chuyển LTF cho strong_signal giống pattern.
-- Tối ưu render ảnh bằng cách gửi ảnh trực tiếp từ bộ nhớ thay vì ghi ra file rồi mở lại.
-- Thêm lưu/khôi phục `scan_state.json` để không mất key HTF/LTF sau restart.
+- Sửa logic phát hiện hỗ trợ kháng cự cao/thấp dần
+- Vị trí sl của từng vị thế đã chính xác hơn
