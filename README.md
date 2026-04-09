@@ -235,6 +235,32 @@ Bot hỗ trợ:
 - Retry tối đa 2 lần cho cùng một LTF trước khi chuyển LTF khác
 - Chuyển sang LTF tiếp theo nếu LTF hiện tại bị SL nhiều lần
 
+### Điều chỉnh SL để bảo vệ
+
+Bot tự động kéo SL ra xa một chút (khoảng 10% khoảng cách từ entry đến SL gốc) để tránh SL bị "cắt chặt":
+
+**Cách hoạt động đơn giản:**
+- Máy tính ra khoảng cách từ vị trí vào lệnh đến SL bạn chỉ định
+- Rồi kéo SL ra xa hơn 10% so với khoảng cách đó
+- Ví dụ: Vào lệnh ở 2650, SL gốc ở 2640 → khoảng cách = 10 pip → Bot sẽ kéo SL xuống còn 2639
+
+**Tại sao cần làm vậy:**
+- Giá có lúc đảo chiều rất nhanh, SL hiện tại có thể "cắt sớm" do biến động bình thường
+- Kéo SL ra xa một chút giúp tín hiệu có thêm không gian để phát triển
+- Từ đó tỷ lệ thắng mất giảm, lợi nhuận cao hơn
+
+**Lưu ý:**
+- SL đã được điều chỉnh này sẽ hiển thị trong cảnh báo Telegram
+- Bạn có thể nói không bằng cách bấm "Đổi SL" để sử dụng SL gốc hoặc nhập mức khác
+
+**Ví dụ thực tế:**
+- Nếu tín hiệu gợi ý vào BUY ở 2650, SL ở 2640
+- Bot sẽ báo: "Entry: 2650 | SL: 2639" (đã kéo ra 1 pip)
+- Bạn có quyền chọn:
+  - Vào lệnh với SL 2639 (như bot gợi ý)
+  - Hoặc bấm "Đổi SL" nhập 2640 (sử dụng SL gốc)
+  - Hoặc nhập mức khác tùy ý
+
 ### Báo cáo
 
 - Lưu lịch sử giao dịch
